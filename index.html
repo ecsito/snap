@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Overlay estilo Snapchat — Imagen/Video</title>
+<meta name="description" content="Subí una imagen o video y agregá una caja de texto semitransparente estilo Snapchat.">
+<style>
+  :root{
+    --accent: #6b6bff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    background:#0f1115;
+    color:#eef1f5;
+    line-height:1.45;
+  }
+  header{
+    padding:18px 20px;
+    border-bottom:1px solid #20242d;
+    display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  }
+  header h1{
+    margin:0;font-size:18px;font-weight:700;letter-spacing:.2px
+  }
+  .bar{
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap
+  }
+  .btn, label.btn{
+    appearance:none;
+    border:1px solid #2a2f3a;
+    background:#191c23;
+    color:#eef1f5;
+    padding:10px 14px;
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:600;
+    transition:.15s ease;
+    display:inline-flex;gap:8px;align-items:center;
+  }
+  .btn:hover{border-color:#3a4150; transform: translateY(-1px)}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;transform:none}
+  input[type="file"]{display:none}
+
+  .panel{
+    display:flex;gap:14px;flex-wrap:wrap;align-items:center
+  }
+  .ctrl{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 10px;border:1px solid #20242d;border-radius:10px;background:#141820;
+  }
+  .ctrl label{font-size:12px;opacity:.85}
+  .ctrl input[type="range"]{width:120px}
+  .chip{
+    padding:8px 12px;border:1px dashed #2a2f3a;border-radius:10px;font-size:12px;opacity:.8
+  }
+
+  main{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:16px;
+    padding:16px;
+  }
+
+  /* Stage */
+  .stage-wrap{
+    width:min(1100px, 92vw);
+    margin:0 auto;
+  }
+  .stage{
+    position:relative;
+    width:100%;
+    min-height:300px;
+    background:#0b0d12;
+    border:1px solid #1a1f29;
+    border-radius:14px;
+    overflow:hidden;
+  }
+  .placeholder{
+    position:absolute;inset:0;display:grid;place-items:center;
+    color:#9aa3b2; text-align:center; padding:20px; pointer-events:none;
+  }
+  .media{
+    display:block;max-width:100%;max-height:80vh;margin:auto;
+    position:relative;z-index:0;
+  }
+  .video-controls{
+    position:absolute; right:12px; bottom:12px; z-index:5;
+    display:flex; gap:8px;
+  }
+
+  /* Text Box */
+  .overlay-box{
+    position:absolute;
+    top:20px; left:20px;
+    background:rgba(0,0,0,.45);
+    color:#fff;
+    padding:12px 14px;
+    border-radius:10px;
+    min-width:140px;
+    max-width:85%;
+    z-index:2;
+    cursor:move;
+    user-select:none;
+    outline:1px dashed transparent;
+  }
+  .overlay-box:focus-within, .overlay-box.dragging{outline-color:#6b6bff55}
+  .overlay-content{
+    outline:none;
+    white-space:pre-wrap;
+    word-break:break-word;
+    font-size:20px;
+    line-height:1.25;
+    user-select:text; /* permitir seleccionar texto dentro */
+    cursor:text;
+  }
+  .handle{
+    position:absolute; right:-6px; bottom:-6px;
+    width:14px; height:14px; border-radius:4px;
+    background:#191c23; border:1px solid #2a2f3a;
+    cursor:nwse-resize; z-index:3;
+  }
+
+  /* Footer tips */
+  footer{
+    padding:12px 16px; color:#9aa3b2; text-align:center; font-size:12px;
+  }
+
+  /* Small */
+  @media (max-width:720px){
+    .ctrl input[type="range"]{width:90px}
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🫧 Caja de texto semitransparente (Snapchat-like)</h1>
+    <div class="bar">
+      <label class="btn" title="Cargar imagen o video">
+        <input id="file" type="file" accept="image/*,video/*">
+        📤 Cargar imagen/video
+      </label>
+      <button id="addBox" class="btn" title="Añadir una caja de texto">➕ Añadir caja</button>
+      <button id="snapshot" class="btn" title="Capturar PNG (imagen o frame del video con overlay)">📸 Snapshot PNG</button>
+    </div>
+    <div class="panel">
+      <div class="ctrl">
+        <label for="bg">Fondo</label>
+        <select id="bg">
+          <option value="rgba(0,0,0,VAR)">Negro</option>
+          <option value="rgba(255,255,255,VAR)">Blanco</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label for="opacity">Opacidad</label>
+        <input id="opacity" type="range" min="0" max="100" value="45">
+        <span id="opVal">45%</span>
+      </div>
+      <div class="ctrl">
+        <label for="fontSize">Tamaño</label>
+        <input id="fontSize" type="range" min="12" max="64" value="20">
+        <span id="fsVal">20px</span>
+      </div>
+      <div class="ctrl">
+        <label for="radius">Radio</label>
+        <input id="radius" type="range" min="0" max="30" value="10">
+        <span id="rdVal">10px</span>
+      </div>
+      <div class="ctrl">
+        <label for="padding">Padding</label>
+        <input id="padding" type="range" min="6" max="28" value="12">
+        <span id="pdVal">12px</span>
+      </div>
+      <div class="ctrl">
+        <label for="txtColor">Texto</label>
+        <input id="txtColor" type="color" value="#ffffff" title="Color del texto">
+      </div>
+      <div class="chip">💡 Emojis: Windows <b>Win + .</b> • macOS <b>Ctrl+⌘+Espacio</b></div>
+    </div>
+  </header>
+
+  <main>
+    <div class="stage-wrap">
+      <div id="stage" class="stage" aria-label="Lienzo de edición">
+        <div class="placeholder">Cargá una imagen o video con el botón de arriba.<br>Luego arrastrá la caja y escribí tu texto ✍️</div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Hecho para GitHub Pages. Funciona 100% en el navegador, sin subir tus archivos a ningún servidor.
+  </footer>
+
+<script>
+(() => {
+  const fileInput = document.getElementById('file');
+  const stage = document.getElementById('stage');
+  const addBoxBtn = document.getElementById('addBox');
+  const snapshotBtn = document.getElementById('snapshot');
+
+  const bgSel = document.getElementById('bg');
+  const opacityRange = document.getElementById('opacity');
+  const opVal = document.getElementById('opVal');
+  const fontRange = document.getElementById('fontSize');
+  const fsVal = document.getElementById('fsVal');
+  const radiusRange = document.getElementById('radius');
+  const rdVal = document.getElementById('rdVal');
+  const paddingRange = document.getElementById('padding');
+  const pdVal = document.getElementById('pdVal');
+  const txtColor = document.getElementById('txtColor');
+
+  let currentMedia = null; // <img> o <video>
+  let activeBox = null;
+
+  // Utilidad: crear overlay
+  function createOverlayBox(text = 'Tu texto aquí ✨') {
+    const box = document.createElement('div');
+    box.className = 'overlay-box';
+    box.style.background = computeBg();
+    box.style.borderRadius = radiusRange.value + 'px';
+    box.style.padding = paddingRange.value + 'px';
+    box.style.color = txtColor.value;
+
+    const content = document.createElement('div');
+    content.className = 'overlay-content';
+    content.contentEditable = 'true';
+    content.spellcheck = false;
+    content.textContent = text;
+
+    const handle = document.createElement('div');
+    handle.className = 'handle';
+    box.appendChild(content);
+    box.appendChild(handle);
+
+    // Foco y selección activa
+    box.addEventListener('pointerdown', () => setActive(box));
+    content.addEventListener('focus', () => setActive(box));
+
+    // Arrastrar caja
+    let dragging = false;
+    let startX=0, startY=0, origLeft=0, origTop=0;
+    box.addEventListener('pointerdown', (e) => {
+      // no drag si clic dentro del texto con caret
+      if (e.target === content && isTextSelectionLikely(e)) return;
+      if (e.target.classList.contains('handle')) return; // el handle es para resize
+      dragging = true;
+      box.classList.add('dragging');
+      startX = e.clientX; startY = e.clientY;
+      const rect = box.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+      origLeft = rect.left - stageRect.left + stage.scrollLeft;
+      origTop  = rect.top  - stageRect.top  + stage.scrollTop;
+
+      box.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    box.addEventListener('pointermove', (e) => {
+      if(!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      positionBox(box, origLeft + dx, origTop + dy);
+    });
+    box.addEventListener('pointerup', (e) => {
+      dragging = false;
+      box.classList.remove('dragging');
+      box.releasePointerCapture(e.pointerId);
+    });
+
+    // Resize con handle
+    let resizing = false;
+    let startW=0, startH=0;
+    handle.addEventListener('pointerdown', (e) => {
+      resizing = true;
+      startX = e.clientX; startY = e.clientY;
+      const r = box.getBoundingClientRect();
+      startW = r.width; startH = r.height;
+      handle.setPointerCapture(e.pointerId);
+      e.stopPropagation(); e.preventDefault();
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if(!resizing) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const newW = Math.max(120, startW + dx);
+      const newH = Math.max(40,  startH + dy);
+      box.style.width = newW + 'px';
+      box.style.height = newH + 'px';
+    });
+    handle.addEventListener('pointerup', (e) => {
+      resizing = false;
+      handle.releasePointerCapture(e.pointerId);
+    });
+
+    // Nudge con flechas
+    box.tabIndex = 0;
+    box.addEventListener('keydown', (e) => {
+      const step = e.shiftKey ? 10 : 1;
+      const rect = box.getBoundingClientRect();
+      const sRect = stage.getBoundingClientRect();
+      let left = rect.left - sRect.left + stage.scrollLeft;
+      let top  = rect.top  - sRect.top  + stage.scrollTop;
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+      }
+      if (e.key === 'ArrowUp')    top  -= step;
+      if (e.key === 'ArrowDown')  top  += step;
+      if (e.key === 'ArrowLeft')  left -= step;
+      if (e.key === 'ArrowRight') left += step;
+      positionBox(box, left, top);
+    });
+
+    stage.appendChild(box);
+    setActive(box);
+    setTimeout(() => content.focus(), 0);
+    return box;
+  }
+
+  function positionBox(box, left, top){
+    const sRect = stage.getBoundingClientRect();
+    const bRect = box.getBoundingClientRect();
+    // Limitar dentro del stage
+    left = Math.max(0, Math.min(left, sRect.width - bRect.width));
+    top  = Math.max(0, Math.min(top,  sRect.height - bRect.height));
+    box.style.left = left + 'px';
+    box.style.top  = top  + 'px';
+  }
+
+  function isTextSelectionLikely(e){
+    // Si hay doble click o click dentro del content con Ctrl/Meta -> suele ser selección de palabra
+    return e.detail >= 2 || e.ctrlKey || e.metaKey;
+  }
+
+  function setActive(box){
+    activeBox = box;
+    applyControlsToActive();
+  }
+
+  function computeBg(){
+    const varOpacity = (Number(opacityRange.value)/100).toFixed(2);
+    return bgSel.value.replace('VAR', varOpacity);
+  }
+
+  function clearStage(){
+    stage.innerHTML = '<div class="placeholder">Cargá una imagen o video con el botón de arriba.<br>Luego arrastrá la caja y escribí tu texto ✍️</div>';
+    document.querySelector('.placeholder')?.remove(); // quitar de inmediato al cargar media
+  }
+
+  function loadMedia(file){
+    const url = URL.createObjectURL(file);
+    // Limpia media y overlays previos, pero conserva stage
+    stage.querySelectorAll('.overlay-box').forEach(n => n.remove());
+    stage.querySelector('.media')?.remove();
+    stage.querySelector('.placeholder')?.remove();
+
+    if (file.type.startsWith('image/')){
+      const img = document.createElement('img');
+      img.className = 'media';
+      img.alt = file.name;
+      img.onload = () => URL.revokeObjectURL(url);
+      img.src = url;
+      stage.appendChild(img);
+      currentMedia = img;
+      // Añadir una caja por defecto
+      createOverlayBox();
+    } else if (file.type.startsWith('video/')){
+      const vid = document.createElement('video');
+      vid.className = 'media';
+      vid.controls = true;
+      vid.playsInline = true;
+      vid.src = url;
+      vid.onloadeddata = () => URL.revokeObjectURL(url);
+      stage.appendChild(vid);
+      currentMedia = vid;
+
+      // Botonera rápida (play/pause, mute)
+      injectVideoButtons(vid);
+      createOverlayBox();
+    } else {
+      alert('Formato no soportado. Usá imagen o video.');
+    }
+  }
+
+  function injectVideoButtons(video){
+    // Limpia previos
+    stage.querySelector('.video-controls')?.remove();
+    const box = document.createElement('div');
+    box.className = 'video-controls';
+
+    const play = document.createElement('button');
+    play.className = 'btn'; play.type='button';
+    play.textContent = '▶️/⏸️';
+    play.addEventListener('click', ()=> video.paused ? video.play() : video.pause());
+
+    const mute = document.createElement('button');
+    mute.className = 'btn'; mute.type='button';
+    mute.textContent = '🔇/🔊';
+    mute.addEventListener('click', ()=> video.muted = !video.muted);
+
+    box.appendChild(play); box.appendChild(mute);
+    stage.appendChild(box);
+  }
+
+  // Controles globales -> afectan a la caja activa
+  function applyControlsToActive(){
+    const box = activeBox;
+    if(!box) return;
+    const content = box.querySelector('.overlay-content');
+    box.style.background = computeBg();
+    box.style.borderRadius = radiusRange.value + 'px';
+    box.style.padding = paddingRange.value + 'px';
+    content.style.fontSize = fontRange.value + 'px';
+    content.style.color = txtColor.value;
+
+    opVal.textContent = opacityRange.value + '%';
+    fsVal.textContent = fontRange.value + 'px';
+    rdVal.textContent = radiusRange.value + 'px';
+    pdVal.textContent = paddingRange.value + 'px';
+  }
+
+  // Snapshot a PNG (imagen o frame de video + overlays)
+  async function snapshot(){
+    if(!currentMedia){
+      alert('Primero cargá una imagen o video.'); return;
+    }
+    const media = currentMedia;
+    const boxes = Array.from(stage.querySelectorAll('.overlay-box'));
+    // Crear canvas del tamaño real del media mostrado en stage
+    // Ojo: usamos dimensiones de presentación (CSS pixels)
+    const rect = media.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    const W = Math.round(rect.width * ratio);
+    const H = Math.round(rect.height * ratio);
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // Posición del media dentro del stage
+    const stageRect = stage.getBoundingClientRect();
+    const mediaOffsetX = rect.left - stageRect.left;
+    const mediaOffsetY = rect.top  - stageRect.top;
+
+    // 1) Dibujar media
+    if (media.tagName === 'IMG'){
+      // Para imagen: escalar al canvas
+      drawImageLikeCSSContain(ctx, media, W, H, rect);
+    } else if (media.tagName === 'VIDEO'){
+      // Para video: dibujar frame actual
+      try {
+        ctx.drawImage(media, 0, 0, W, H);
+      } catch(e) {
+        alert('No se pudo capturar este video (posible restricción CORS).');
+        return;
+      }
+    }
+
+    // 2) Dibujar overlays
+    for(const box of boxes){
+      const bRect = box.getBoundingClientRect();
+      // fondo
+      const bg = getComputedStyle(box).backgroundColor;
+      const x = Math.round((bRect.left - rect.left) * ratio);
+      const y = Math.round((bRect.top  - rect.top)  * ratio);
+      const w = Math.round(bRect.width * ratio);
+      const h = Math.round(bRect.height * ratio);
+      const radius = parseFloat(getComputedStyle(box).borderRadius) * ratio;
+
+      // caja redondeada
+      roundRectPath(ctx, x, y, w, h, radius);
+      ctx.fillStyle = bg;
+      ctx.fill();
+
+      // texto (contenteditable)
+      const content = box.querySelector('.overlay-content');
+      const style = getComputedStyle(content);
+      const fontSize = parseFloat(style.fontSize) * ratio;
+      const lineHeight = parseFloat(style.lineHeight) * ratio;
+      const color = style.color;
+      const padding = parseFloat(getComputedStyle(box).padding) * ratio;
+      ctx.fillStyle = color;
+      ctx.font = `${style.fontWeight} ${fontSize}px ${style.fontFamily}`;
+      ctx.textBaseline = 'top';
+
+      // dividir por líneas visibles
+      const lines = (content.innerText || '').split('\n');
+      let ty = y + padding;
+      const maxTextWidth = w - padding*2;
+      for(let line of lines){
+        // naive wrap
+        const words = line.split(' ');
+        let acc = '';
+        for(let i=0;i<words.length;i++){
+          const test = (acc ? acc + ' ' : '') + words[i];
+          if (ctx.measureText(test).width > maxTextWidth){
+            ctx.fillText(acc, x + padding, ty);
+            ty += lineHeight;
+            acc = words[i];
+          }else{
+            acc = test;
+          }
+        }
+        ctx.fillText(acc, x + padding, ty);
+        ty += lineHeight;
+      }
+    }
+
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'overlay.png';
+    a.click();
+  }
+
+  // Helpers de dibujo
+  function roundRectPath(ctx, x, y, w, h, r){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+  }
+
+  function drawImageLikeCSSContain(ctx, img, W, H, rect){
+    // El <img> ya está "contain" por CSS (max-width/max-height). Acá solo dibujamos a canvas de ese tamaño.
+    try{ ctx.drawImage(img, 0, 0, W, H); }
+    catch(e){ console.warn('No se pudo dibujar la imagen', e); }
+  }
+
+  // Eventos UI
+  fileInput.addEventListener('change', (e) => {
+    const f = e.target.files?.[0];
+    if (f) loadMedia(f);
+  });
+  addBoxBtn.addEventListener('click', () => {
+    if(!currentMedia){ alert('Primero cargá una imagen o video.'); return; }
+    createOverlayBox('Nuevo texto 📝');
+  });
+  snapshotBtn.addEventListener('click', snapshot);
+
+  [bgSel, opacityRange, fontRange, radiusRange, paddingRange, txtColor].forEach(el=>{
+    el.addEventListener('input', ()=>{
+      applyControlsToActive();
+    });
+  });
+
+  // Click en stage para activar caja más cercana
+  stage.addEventListener('pointerdown', (e) => {
+    const box = e.target.closest('.overlay-box');
+    if (!box) activeBox = null;
+  });
+
+  // Arrastrar y soltar archivo al stage
+  stage.addEventListener('dragover', (e)=>{ e.preventDefault(); stage.style.borderColor='var(--accent)'; });
+  stage.addEventListener('dragleave', ()=>{ stage.style.borderColor='#1a1f29'; });
+  stage.addEventListener('drop', (e)=>{
+    e.preventDefault();
+    stage.style.borderColor='#1a1f29';
+    const f = e.dataTransfer.files?.[0];
+    if (f) loadMedia(f);
+  });
+
+  // Inicializa los valores visibles
+  applyControlsToActive();
+
+})();
+</script>
+</body>
+</html>
